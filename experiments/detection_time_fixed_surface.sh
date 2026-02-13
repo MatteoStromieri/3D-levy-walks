@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # === OAR directives ===
-#OAR -l walltime=11:00:00
+#OAR -l walltime=10:00:00
 #OAR -O OAR_%jobid%.out
 #OAR -E OAR_%jobid%.err
-#OAR -n fixed-volume
+#OAR -n fixed-surface
 
-SOURCE_FILE="simulation_fixed_volume.c"
+SOURCE_FILE="simulation.c"
 LIB_FILE="func.c helpers.c"
 EXECUTABLE_NAME="simulation_executable_$$"  # Executable with unique name
-CONFIG_FILE="./experiments/configs/detection_time_fixed_volume.conf"
+CONFIG_FILE="./experiments/configs/detection_time_fixed_surface.conf"
 
 echo "Compiling $SOURCE_FILE..."
 gcc "$SOURCE_FILE" $LIB_FILE -o "$EXECUTABLE_NAME" -lm

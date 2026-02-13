@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
         perror("Error opening output file");
         return EXIT_FAILURE;
     }
-    fprintf(output_file, "n_walkers,n_volume,mu,lmax,D,surface,TargetShape,n_targets,fixed_target_dist,detection_time,probability,surface_selector,first_touch_steps, second_touch_steps, delta_selector, delta\n");
+    fprintf(output_file, "n_walkers,n_volume,mu,lmax,D,TargetShape,DiskDiameter,n_targets,fixed_target_dist,detection_time,probability\n");
 
     long start_total_time = time(NULL);
 

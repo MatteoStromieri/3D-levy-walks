@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# === OAR directives ===
+#OAR -l walltime=5:00:00
+#OAR -O OAR_%jobid%.out
+#OAR -E OAR_%jobid%.err
+#OAR -n cauchy-detection-time
+
 SOURCE_FILE="simulation.c"
 LIB_FILE="func.c helpers.c"
 EXECUTABLE_NAME="simulation_executable_$$"  # Executable with unique name

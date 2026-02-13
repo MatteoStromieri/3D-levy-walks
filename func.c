@@ -11,12 +11,14 @@ int get_mu_index(double mu_val) {
 
 double get_diameter_from_surface(double surface, const char* shape){
     // + 0.5 is for the approximation
-    if (strcmp(shape, "Ball") == 0 || strcmp(shape, "Ball_no_boundary") == 0 || strcmp(shape, "Ball_boundary") == 0)
-        return (sqrt((double)surface / M_PI) - 1.0);
+    if (strcmp(shape, "Ball") == 0 || strcmp(shape, "Ball_boundary") == 0)
+        return (sqrt((double)surface / M_PI) - 2.0);
+    if (strcmp(shape, "Ball_no_boundary") == 0)
+        return sqrt((double)surface / M_PI);
     if (strcmp(shape, "Line") == 0) 
-        return (int) (((double) surface / (2.0*M_PI) - 2.0));
+        return (((double) surface / (2.0*M_PI) - 2.0));
     if (strcmp(shape, "Disk") == 0)
-        return (int) (-2.0*M_PI + sqrt(4.0 * M_PI * M_PI + 2.0 * (double) surface)); 
+        return (-2.0*M_PI + sqrt(4.0 * M_PI * M_PI + 2.0 * (double) surface)); 
     return -1; // Error case
 }
 
@@ -329,8 +331,8 @@ Result LevySearch3D_MultiWalker(int n_walkers, const char* initialization, doubl
                     }
                 } else if (strcmp(TargetShape, "2D_rectangle") == 0) {
                     // in this setting, the diameter is the surface and we have to use the delta parameter
-                    double side_x = (pow(D,delta) + 2)/2; // longest side + detection radius
-                    double side_y = (pow(D,1-delta) + 2)/2; // shortest side + detection radius
+                    double side_x = (pow(D,delta))/2; // longest side + detection radius
+                    double side_y = (pow(D,1-delta))/2; // shortest side + detection radius
                     
                     double dist_x = fmin(fabs(walkers[i][0] - target_center[0]), cube_side - fabs(walkers[i][0] - target_center[0]));
                     double dist_y = fmin(fabs(walkers[i][1] - target_center[1]), cube_side - fabs(walkers[i][1] - target_center[1]));

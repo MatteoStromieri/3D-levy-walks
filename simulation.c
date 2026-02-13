@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
         perror("Error opening output file");
         return EXIT_FAILURE;
     }
-    fprintf(output_file, "n_walkers,n_volume,mu,lmax,D,surface,TargetShape,n_targets,fixed_target_dist,detection_time,probability,surface_selector,first_touch_steps, second_touch_steps, delta_selector, delta\n");
+    fprintf(output_file, "n_walkers,n_volume,mu,lmax,D,surface,TargetShape,n_targets,fixed_target_dist,detection_time,probability,surface_selector,first_touch_steps,second_touch_steps,delta_selector,delta\n");
 
     long start_total_time = time(NULL);
 
@@ -82,6 +82,8 @@ int main(int argc, char *argv[]) {
                                     double probability = cfg.range_probability[i_probability];
                                     for (int i_delta = 0; i_delta < cfg.len_range_delta; ++i_delta) {
                                         double delta = cfg.range_delta[i_delta];
+                                        //printf("Running configuration: n_walkers=%d, n_volume=%.0f, mu=%.1f, lmax=%d, D=%.2f, surface=%.2f, TargetShape=%s, n_targets=%d, fixed_target_dist=%.1f, probability=%.2f, delta=%.2f\n",
+                                        //        n_walkers, n_volume, mu, lmax_current, D, surface, TargetShape, n_targets, fixed_target_dist, probability, delta);
                                         if (D >= 1 && D <= side ){
                                             Result result = LevySearch3D_MultiWalker(n_walkers, "nest", n_volume, mu, lmax_current,
                                                                                                 D, TargetShape, n_targets, fixed_target_dist, probability, normalization_constant, cfg.steps_between, cfg.max_touches, cfg.delta_selector, delta);
