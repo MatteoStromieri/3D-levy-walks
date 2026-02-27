@@ -16,3 +16,7 @@ sim.c
 # Temporary files
 *executable*
 
+*.pdf
+validation/*.csv
+validation/*.png
+validation/__pycache__/*
