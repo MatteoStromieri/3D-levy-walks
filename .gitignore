@@ -1,12 +1,25 @@
 /old
 /plots
 /scripts
+data-analysis_temp.ipynb
 
+# Ignore all contents
 /results/detection_time_cauchy/*
 /results/detection_time_mu/*
 /results/detection_time_fixed_volume/*
 /results/detection_time_small_delta/*
+/results/fixed_volume/*
 /results/unpolished/*
+
+# But keep the directories themselves
+!/results/detection_time_cauchy/.gitkeep
+!/results/detection_time_cauchy/.gitkeep
+!/results/detection_time_mu/.gitkeep
+!/results/detection_time_mu/.gitkeep
+!/results/fixed_volume/.gitkeep
+!/results/detection_time_fixed_volume/.gitkeep
+!/results/detection_time_small_delta/.gitkeep
+!/results/detection_time_small_delta/.gitkeep
 
 data-analysis.py
 OAR*
