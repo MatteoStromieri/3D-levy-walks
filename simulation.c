@@ -35,7 +35,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     fprintf(output_file, "n_walkers,n_volume,mu,lmax,D,surface,TargetShape,n_targets,fixed_target_dist,detection_time,probability,surface_selector,first_touch_steps,second_touch_steps,delta_selector,delta\n");
-
+    if (fflush(output_file) != 0) {
+        perror("fflush failed");
+    }
     long start_total_time = time(NULL);
 
     long total_inner_iterations = (long)cfg.len_range_side * cfg.len_list_shapes * cfg.len_range_diam *
@@ -56,7 +58,8 @@ int main(int argc, char *argv[]) {
         for (int i_side = 0; i_side < cfg.len_range_side; ++i_side) {
             int side = cfg.range_side[i_side];
             double n_volume = pow(side, 3);
-            int lmax_current = side / 2;
+            int lmax_current = cfg.l_max;
+            
             for (int i_mu = 0; i_mu < cfg.len_rangemu_LevyDistrib; ++i_mu) {
                 double mu = cfg.rangemu_LevyDistrib[i_mu];  
                 double normalization_constant = get_normalization_constant(mu, lmax_current);         
@@ -64,9 +67,11 @@ int main(int argc, char *argv[]) {
                     const char* TargetShape = cfg.list_shapes[i_shape];
                     for (int i_D = 0; i_D < cfg.len_range_diam; ++i_D) {
                         double D; 
-                        if (cfg.surface_selector) {
+                        if (cfg.surface_selector == 1) {
                             D = get_diameter_from_surface(cfg.range_diam[i_D], TargetShape);
                             //printf("Using surface area %.2f for shape %s gives effective diameter D=%.2f\n", cfg.range_diam[i_D], TargetShape, D);
+                        } else if (cfg.surface_selector == 2) {
+                            D = get_diameter_from_projected_surface(cfg.range_diam[i_D], TargetShape);                        
                         } else if (cfg.delta_selector) {
                             D = cfg.range_diam[i_D]; // in this case, range_diam contains the surface values
                         } else {
@@ -84,7 +89,7 @@ int main(int argc, char *argv[]) {
                                         double delta = cfg.range_delta[i_delta];
                                         //printf("Running configuration: n_walkers=%d, n_volume=%.0f, mu=%.1f, lmax=%d, D=%.2f, surface=%.2f, TargetShape=%s, n_targets=%d, fixed_target_dist=%.1f, probability=%.2f, delta=%.2f\n",
                                         //        n_walkers, n_volume, mu, lmax_current, D, surface, TargetShape, n_targets, fixed_target_dist, probability, delta);
-                                        if (D >= 1 && D <= side ){
+                                        if ((cfg.delta_selector == 0 && D >= 1 && D <= side) || (cfg.delta_selector == 1)){
                                             Result result = LevySearch3D_MultiWalker(n_walkers, "nest", n_volume, mu, lmax_current,
                                                                                                 D, TargetShape, n_targets, fixed_target_dist, probability, normalization_constant, cfg.steps_between, cfg.max_touches, cfg.delta_selector, delta);
                                             double detection_time = result.detection_time;
@@ -92,6 +97,9 @@ int main(int argc, char *argv[]) {
                                             int second_touch_steps = result.second_touch_steps;
                                             fprintf(output_file, "%d,%.0f,%.1f,%d,%.2f,%.2f,%s,%d,%.1f,%.2f,%.2f,%d,%d,%d,%d,%.2f\n",
                                                     n_walkers, n_volume, mu, lmax_current, D, surface, TargetShape, n_targets, fixed_target_dist, detection_time, probability, cfg.surface_selector, first_touch_steps, second_touch_steps, cfg.delta_selector, delta);
+                                            if (fflush(output_file) != 0) {
+                                                perror("fflush failed");
+                                            }
                                             }
                                         else {
                                             //printf("Skipping invalid configuration: D=%.2f, side=%d", D, side);

@@ -16,6 +16,8 @@ double get_normalization_constant(double mu, int lmax);
 
 double get_diameter_from_surface(double surface, const char* shape);
 
+double get_diameter_from_projected_surface(double surface, const char* shape);
+
 Result LevySearch3D_MultiWalker(int, const char*, double , double, int,
                                 double , const char* , int ,
                                 double, double, double, int, int, int, double);

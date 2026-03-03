@@ -22,6 +22,16 @@ double get_diameter_from_surface(double surface, const char* shape){
     return -1; // Error case
 }
 
+double get_diameter_from_projected_surface(double surface, const char* shape){
+    // + 0.5 is for the approximation
+    if (strcmp(shape, "Ball") == 0 || strcmp(shape, "Ball_boundary") == 0 || strcmp(shape, "Disk") == 0)
+        return (2*sqrt((double)surface / M_PI) - 2.0);
+    if (strcmp(shape, "Ball_no_boundary") == 0)
+        return (2*sqrt((double)surface / M_PI));
+    if (strcmp(shape, "Line") == 0) 
+        return ((double) (surface - M_PI)/2.0); 
+    return -1; // Error case
+}
 
 double get_normalization_constant(double mu, int lmax){
     if (mu == 1.0){
@@ -344,7 +354,18 @@ Result LevySearch3D_MultiWalker(int n_walkers, const char* initialization, doubl
                         inside_target = 1;
                     }
 
-                }else {
+                } else if (strcmp(TargetShape, "prism_with_elongation") == 0) {
+                    double side_x = (sqrt(D) + 2)/2;
+                    double side_z = (pow(side_x,delta) + 2)/2; // can go from 3 to \Delta + 2
+                    
+                    // Assume that the prism is centered at the origin
+                    double dist_xy = fmax(fabs(walkers[i][0]), fabs(walkers[i][1]));
+                    double dist_z = fabs(walkers[i][2]);
+
+                    if (dist_xy < side_x && dist_z < side_z) {
+                        inside_target = 1;
+                    }
+                } else {
                     fprintf(stderr, "Unknown TargetShape: %s\n", TargetShape);
                     free(walkers);
                     free(target_positions);
@@ -383,285 +404,3 @@ Result LevySearch3D_MultiWalker(int n_walkers, const char* initialization, doubl
         }
     }
 }
-
-double LevySearch3D_MultiWalker_boundary_detection(int n_walkers, const char* initialization, double n_volume, double mu, int lmax,
-                                int D, const char* TargetShape, int num_targets_to_generate,
-                                double target_distance_from_origin, double p, int* total_points_inside_target, double normalization_constant) {
-    double cube_side = cbrt(n_volume);
-
-    // Allocate memory for walkers
-    double (*walkers)[3] = (double (*)[3])malloc(n_walkers * sizeof(double[3]));
-    int* walkers_steps_inside_target = (int*)malloc(n_walkers * sizeof(int));
-    if (walkers == NULL) {
-        fprintf(stderr, "Memory allocation failed for walkers\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialize walkers
-    if (strcmp(initialization, "independent") == 0) {
-        for (int i = 0; i < n_walkers; ++i) {
-            walkers[i][0] = (double)rand() / RAND_MAX * cube_side;
-            walkers[i][1] = (double)rand() / RAND_MAX * cube_side;
-            walkers[i][2] = (double)rand() / RAND_MAX * cube_side;
-        }
-    } else if (strcmp(initialization, "nest") == 0) {
-        double random_point[3];
-        random_point[0] = (double) cube_side / 2.0;
-        random_point[1] = (double) cube_side / 2.0;
-        random_point[2] = (double) cube_side / 2.0;
-        for (int i = 0; i < n_walkers; ++i) {
-            walkers[i][0] = random_point[0];
-            walkers[i][1] = random_point[1];
-            walkers[i][2] = random_point[2];
-        }
-    }
-
-    for (int i = 0; i < n_walkers; ++i) {
-        walkers_steps_inside_target[i] = 0; // Initialize steps inside target to 0
-    }
-
-    // Allocate memory for target positions
-    double (*target_positions)[3] = (double (*)[3])malloc(num_targets_to_generate * sizeof(double[3]));
-    if (target_positions == NULL) {
-        fprintf(stderr, "Memory allocation failed for target_positions\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialize target positions
-    if (target_distance_from_origin >= 0) { // Fixed distance
-        for (int i = 0; i < num_targets_to_generate; ++i) {
-            double theta = (double)rand() / RAND_MAX * 2 * M_PI;
-            double phi = (double)rand() / RAND_MAX * M_PI;
-
-            double x = target_distance_from_origin * sin(phi) * cos(theta);
-            double y = target_distance_from_origin * sin(phi) * sin(theta);
-            double z = target_distance_from_origin * cos(phi);
-
-            target_positions[i][0] = fmod(x + cube_side / 2.0, cube_side);
-            target_positions[i][1] = fmod(y + cube_side / 2.0, cube_side);
-            target_positions[i][2] = fmod(z + cube_side / 2.0, cube_side);
-            if (target_positions[i][0] < 0) target_positions[i][0] += cube_side;
-            if (target_positions[i][1] < 0) target_positions[i][1] += cube_side;
-            if (target_positions[i][2] < 0) target_positions[i][2] += cube_side;
-        }
-    } else { // Random placement
-        for (int i = 0; i < num_targets_to_generate; ++i) {
-            target_positions[i][0] = (double)rand() / RAND_MAX * cube_side;
-            target_positions[i][1] = (double)rand() / RAND_MAX * cube_side;
-            target_positions[i][2] = (double)rand() / RAND_MAX * cube_side;
-        }
-    }
-
-    double* walker_times = (double*)calloc(n_walkers, sizeof(double)); // Initialize to 0.0
-    double* discovery_times = (double*)malloc(n_walkers * sizeof(double));
-    int jumps_inside = 0;
-    double dist = 0.0;
-    if (walker_times == NULL || discovery_times == NULL) {
-        fprintf(stderr, "Memory allocation failed for times arrays\n");
-        exit(EXIT_FAILURE);
-    }
-    for (int i = 0; i < n_walkers; ++i) {
-        discovery_times[i] = HUGE_VAL; // Initialize to infinity
-    }
-
-    int any_walker_found_target_boundary = 0;
-
-    while (1) {
-        double min_overall_discovery_time = HUGE_VAL;
-        for (int i = 0; i < n_walkers; ++i) {
-            if (discovery_times[i] < min_overall_discovery_time) {
-                min_overall_discovery_time = discovery_times[i];
-                jumps_inside = walkers_steps_inside_target[i];
-            }
-        }
-
-        if (any_walker_found_target_boundary) {
-            int all_remaining_walkers_past_min_time = 1;
-            for (int i = 0; i < n_walkers; ++i) {
-                if (discovery_times[i] == HUGE_VAL && walker_times[i] < min_overall_discovery_time) {
-                    all_remaining_walkers_past_min_time = 0;
-                    break;
-                }
-            }
-            if (all_remaining_walkers_past_min_time) {
-                *total_points_inside_target = jumps_inside;
-                free(walkers);
-                free(target_positions);
-                free(walker_times);
-                free(discovery_times);
-                free(walkers_steps_inside_target);
-                return min_overall_discovery_time;
-            }
-        }
-
-        for (int i = 0; i < n_walkers; ++i) {
-            if (discovery_times[i] != HUGE_VAL && walker_times[i] >= min_overall_discovery_time) {
-                continue;
-            }
-
-            int l = Levy(mu, lmax, normalization_constant);
-            walker_times[i] += l;
-
-            double theta = (double)rand() / RAND_MAX * 2 * M_PI;
-            double phi = (double)rand() / RAND_MAX * M_PI;
-            double direction[3];
-            direction[0] = sin(phi) * cos(theta);
-            direction[1] = sin(phi) * sin(theta);
-            direction[2] = cos(phi);
-
-            walkers[i][0] += direction[0] * l;
-            walkers[i][1] += direction[1] * l;
-            walkers[i][2] += direction[2] * l;
-
-            // Apply toroidal boundary conditions
-            walkers[i][0] = fmod(walkers[i][0], cube_side);
-            walkers[i][1] = fmod(walkers[i][1], cube_side);
-            walkers[i][2] = fmod(walkers[i][2], cube_side);
-            if (walkers[i][0] < 0) walkers[i][0] += cube_side;
-            if (walkers[i][1] < 0) walkers[i][1] += cube_side;
-            if (walkers[i][2] < 0) walkers[i][2] += cube_side;
-
-            int found_this_walker_in_this_step = 0;
-
-            for (int j = 0; j < num_targets_to_generate; ++j) {
-                double *target_center = target_positions[j];
-
-                int inside_target = 0;
-                // here we check the distance between the walker and the target 
-                if (strcmp(TargetShape, "Ball") == 0) {
-                    dist = toroidal_distance(walkers[i], target_center, cube_side);
-                    if (dist <= 0.5 * D + 1) {
-                        walkers_steps_inside_target[i]++;
-                    }
-                    if (dist >= D/2 && dist <= D/2 + 1) {
-                        inside_target = 1;
-                    }
-                } else {
-                    fprintf(stderr, "Error: The input shape is not valid.");
-                }   
-                
-                if (inside_target) {
-                    double r = (double)rand() / RAND_MAX;
-                    if (r <= p) {
-                        found_this_walker_in_this_step = 1;
-                        break;
-                    }
-                }
-            }
-
-            if (found_this_walker_in_this_step) {
-                if (discovery_times[i] == HUGE_VAL) {
-                    discovery_times[i] = walker_times[i];
-                    any_walker_found_target_boundary = 1;
-                }
-            }
-        }
-    }
-}
-
-double LevySearch3D_SingleWalker_distance(const char* initialization, double cube_side, double mu, int lmax,
-                                int D, const char* TargetShape, int num_targets_to_generate,
-                                double target_distance_from_origin, double p, double* distance, double normalization_constant) {
-    // Allocate memory for walkers
-    double walkers[3];
-    int walkers_steps_inside_target;
-
-    // Initialize walkers
-    if (strcmp(initialization, "independent") == 0) {
-        walkers[0] = (double)rand() / RAND_MAX * cube_side;
-        walkers[1] = (double)rand() / RAND_MAX * cube_side;
-        walkers[2] = (double)rand() / RAND_MAX * cube_side;
-    } else if (strcmp(initialization, "nest") == 0) {
-        double random_point[3];
-        random_point[0] = (double) cube_side / 2.0;
-        random_point[1] = (double) cube_side / 2.0;
-        random_point[2] = (double) cube_side / 2.0;
-        walkers[0] = random_point[0];
-        walkers[1] = random_point[1];
-        walkers[2] = random_point[2];
-    }
-
-    
-    walkers_steps_inside_target = 0; // Initialize steps inside target to 0
-
-    // Allocate memory for target positions
-    double (*target_positions)[3] = (double (*)[3])malloc(num_targets_to_generate * sizeof(double[3]));
-    if (target_positions == NULL) {
-        fprintf(stderr, "Memory allocation failed for target_positions\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialize target positions
-    if (target_distance_from_origin >= 0) { // Fixed distance
-        for (int i = 0; i < num_targets_to_generate; ++i) {
-            double theta = (double)rand() / RAND_MAX * 2 * M_PI;
-            double phi = (double)rand() / RAND_MAX * M_PI;
-
-            double x = target_distance_from_origin * sin(phi) * cos(theta);
-            double y = target_distance_from_origin * sin(phi) * sin(theta);
-            double z = target_distance_from_origin * cos(phi);
-
-            target_positions[i][0] = fmod(x + cube_side / 2.0, cube_side);
-            target_positions[i][1] = fmod(y + cube_side / 2.0, cube_side);
-            target_positions[i][2] = fmod(z + cube_side / 2.0, cube_side);
-            if (target_positions[i][0] < 0) target_positions[i][0] += cube_side;
-            if (target_positions[i][1] < 0) target_positions[i][1] += cube_side;
-            if (target_positions[i][2] < 0) target_positions[i][2] += cube_side;
-        }
-    } else { // Random placement
-        for (int i = 0; i < num_targets_to_generate; ++i) {
-            target_positions[i][0] = (double)rand() / RAND_MAX * cube_side;
-            target_positions[i][1] = (double)rand() / RAND_MAX * cube_side;
-            target_positions[i][2] = (double)rand() / RAND_MAX * cube_side;
-        }
-    }
-
-    double walker_times = 0.0;
-    double dist = 0.0;
-    int temp = 0;
-    
-    while (1) {
-            temp++;
-            double l = Levy(mu, lmax, normalization_constant);
-            printf("Step length: %0.1f\n", l);
-            walker_times+= l;
-
-            double theta = (double)rand() / RAND_MAX * 2 * M_PI;
-            double phi = (double)rand() / RAND_MAX * M_PI;
-            double direction[3];
-            direction[0] = sin(phi) * cos(theta);
-            direction[1] = sin(phi) * sin(theta);
-            direction[2] = cos(phi);
-
-            walkers[0] += direction[0] * l;
-            walkers[1] += direction[1] * l;
-            walkers[2] += direction[2] * l;
-
-            // Apply toroidal boundary conditions
-            walkers[0] = fmod(walkers[0], cube_side);
-            walkers[1] = fmod(walkers[1], cube_side);
-            walkers[2] = fmod(walkers[2], cube_side);
-            if (walkers[0] < 0) walkers[0] += cube_side;
-            if (walkers[1] < 0) walkers[1] += cube_side;
-            if (walkers[2] < 0) walkers[2] += cube_side;
-
-            for (int j = 0; j < num_targets_to_generate; ++j) {
-                double *target_center = target_positions[j];
-
-                int inside_target = 0;
-                // here we check the distance between the walker and the target 
-                if (strcmp(TargetShape, "Ball") == 0) {
-                    dist = toroidal_distance(walkers, target_center, cube_side);
-                    if (dist <= 0.5 * D + 1) {
-                        walkers_steps_inside_target++;
-                        *distance = dist;
-                        //printf("Average step length: %f\n", walker_times / (double)temp);
-                        return walker_times;
-                    }
-                } else {
-                    fprintf(stderr, "Error: The input shape is not valid.");
-                }   
-            }
-    }
-}
-
